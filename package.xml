@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<package>
+  <name>tuda_deployment_scripts</name>
+  <version>0.1.0</version>
+  <description>Scripts related to the deployment of ROS packages on external platforms, e.g., robots.</description>
+
+  <!-- One maintainer tag required, multiple allowed, one person per tag --> 
+  <maintainer email="fabian@sim.tu-darmstadt.de">Stefan Fabian</maintainer>
+  <maintainer email="schnaubelt@sim.tu-darmstadt.de">Marius Schnaubelt</maintainer>
+  <maintainer email="scholz@sim.tu-darmstadt.de">Dorian Scholz</maintainer>
+
+  <!-- One license tag required, multiple allowed, one license per tag -->
+  <license>GPLv3</license>
+
+  <!-- Url tags are optional, but mutiple are allowed, one per tag -->
+  <!-- Optional attribute type can be: website, bugtracker, or repository -->
+  <!-- Example: -->
+  <!-- <url type="website">http://ros.org/wiki/thor_scripts</url> -->
+
+  <!-- Author tags are optional, mutiple are allowed, one per tag -->
+  <!-- Authors do not have to be maintianers, but could be -->
+  <!-- Example: -->
+  <author email="fabian@sim.tu-darmstadt.de">Stefan Fabian</author>
+  <author email="schnaubelt@sim.tu-darmstadt.de">Marius Schnaubelt</author>
+  <author email="scholz@sim.tu-darmstadt.de">Dorian Scholz</author>
+
+  <!-- The *_depend tags are used to specify dependencies -->
+  <!-- Dependencies can be catkin packages or system dependencies -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+</package>
