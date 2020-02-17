@@ -208,7 +208,8 @@ else
             for PACKAGE in $@; do
                 SUB_DEPENDENCIES=$(rospack depends $PACKAGE 2> /dev/null)
                 # If rospack depends failed because one dependency is not a proper ROS dependency, we
-                # try again using a slower custom implementation
+                # try again using a slower custom implementation, this shouldn't be necessary anymore
+                # with noetic upwards if they accepted my PR
                 if [[ $? != 0 ]]; then
                     SUB_DEPENDENCIES=$(find_dependencies $PACKAGE)
                 fi
