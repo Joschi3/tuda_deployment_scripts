@@ -174,7 +174,7 @@ catkin config  --workspace $ROSWSS_ROOT --profile deb_pkgs --build-space ${DEB_B
     --devel-space ${DEB_DEVEL_PATH} --install-space "/opt/${ROSWSS_PROJECT_NAME}" -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null 2>&1
 
 info "Building packages..."
-catkin build  --workspace $ROSWSS_ROOT --profile deb_pkgs $@ || exit 1
+catkin build --no-status --force-color --workspace $ROSWSS_ROOT --profile deb_pkgs $@ || exit 1
 
 function _find_dependencies {
   for item in "${PKG_DEPENDENCIES[@]}"; do
