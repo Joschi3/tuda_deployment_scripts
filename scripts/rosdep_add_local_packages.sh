@@ -3,7 +3,6 @@
 . $(dirname $0)/helper/log_output.sh
 
 BASE_PATH=$(readlink -f $(dirname $0)/..)
-ROSDEP_EXTRA_YAML_FILE="${BASE_PATH}/rosdep_extra_packages.yaml"
 
 if [[ ! -f $ROSDEP_LIST_FILE ]]; then
   error "Rosdep source file not found. Did you run ${ROSWSS_PREFIX} make_debian_packages_init?"

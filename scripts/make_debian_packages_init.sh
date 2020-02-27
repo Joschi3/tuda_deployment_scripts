@@ -8,4 +8,6 @@ ROSDEP_EXTRA_YAML_FILE="${BASE_PATH}/rosdep_extra_packages.yaml"
 
 touch $ROSDEP_YAML_FILE
 echo "yaml file://$ROSDEP_YAML_FILE ${ROS_DISTRO}" | sudo tee ${ROSDEP_LIST_FILE} > /dev/null
-echo "yaml file://$ROSDEP_EXTRA_YAML_FILE ${ROS_DISTRO}" | sudo tee --append ${ROSDEP_LIST_FILE} > /dev/null
+if [ -f $ROSDEP_EXTRA_YAML_FILE ]; then
+  echo "yaml file://$ROSDEP_EXTRA_YAML_FILE ${ROS_DISTRO}" | sudo tee --append ${ROSDEP_LIST_FILE} > /dev/null
+fi
