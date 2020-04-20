@@ -105,10 +105,7 @@ function build_deb_from_ros_package() {
     fi
     # Add info that this package replaces the ros debian package if a ros debian package exists already
     if apt show $DEBIAN_PKG_NAME_ROS 2&>1 >/dev/null; then
-        echo "" >>debian/control
-        echo "Provides: ${DEBIAN_PKG_NAME_ROS}" >>debian/control
-        echo "Replaces: ${DEBIAN_PKG_NAME_ROS}" >>debian/control
-        echo "Conflicts: ${DEBIAN_PKG_NAME_ROS}" >>debian/control
+        sed -i "/^Depends:.*/a Provides: ${DEBIAN_PKG_NAME_ROS}\nReplaces: ${DEBIAN_PKG_NAME_ROS}\nConflicts: ${DEBIAN_PKG_NAME_ROS}" debian/control
     fi
     sed -i -e '1 s:'"$OS_VERSION"'):'"$OS_VERSION"'-'"$BUILD_INFO"'):g' debian/changelog
 
