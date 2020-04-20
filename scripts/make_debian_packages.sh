@@ -43,7 +43,7 @@ function build_deb_from_ros_package() {
         PKG_IS_GIT_PKG=1
         PKG_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
         # Get commit id of 4 or more characters (minimal length to ensure uniqueness)
-        PKG_GIT_COMMIT=$(git rev-parse --short=4 HEAD)
+        PKG_GIT_COMMIT=$(git rev-parse --short HEAD)
         PKG_GIT_URL=$(git remote get-url $(git remote))
     }
 
@@ -102,6 +102,13 @@ function build_deb_from_ros_package() {
 
       # Add Url including branch to control file
       sed -i -r 's/^(Homepage:.*)$/Homepage: '"$(echo "${PKG_GIT_URL}#${PKG_GIT_BRANCH}" | sed 's/\//\\\//g')"'/' debian/control
+    fi
+    # Add info that this package replaces the ros debian package if a ros debian package exists already
+    if apt show $DEBIAN_PKG_NAME_ROS 2&>1 >/dev/null; then
+        echo "" >>debian/control
+        echo "Provides: ${DEBIAN_PKG_NAME_ROS}" >>debian/control
+        echo "Replaces: ${DEBIAN_PKG_NAME_ROS}" >>debian/control
+        echo "Conflicts: ${DEBIAN_PKG_NAME_ROS}" >>debian/control
     fi
     sed -i -e '1 s:'"$OS_VERSION"'):'"$OS_VERSION"'-'"$BUILD_INFO"'):g' debian/changelog
 
