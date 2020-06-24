@@ -18,7 +18,7 @@ function add_debian_pkg_to_rosdep() {
 
 function build_deb_from_ros_package() {
     local PKG_BUILD_PATH=$1
-    if [ ! -d ${PKG_BUILD_PATH} ]; then
+    if [ ! -d "${PKG_BUILD_PATH}" ]; then
         error "Build path for package does not exist: '$PKG_BUILD_PATH'"
         return -1;
     fi
@@ -165,8 +165,6 @@ function parallel_build_deb_packages() {
             QUEUE="$QUEUE $PACKAGE"
             continue
         fi
-        echo "Would build: $PACKAGE"
-        #build_package
         BUILD_COUNT=$((BUILD_COUNT+1))
         if build_package; then
             SUCCESSES=$((SUCCESSES+1))
