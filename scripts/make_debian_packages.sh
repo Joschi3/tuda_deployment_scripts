@@ -125,7 +125,7 @@ function parallel_build_deb_packages() {
     local BUILD_COUNT=0
     local SUCCESSES=0
     local TOTAL=$(echo $@ | wc -w)
-    local QUEUE=( "$@" )
+    local QUEUE=( $@ )
     
     function build_package() {
         build_deb_from_ros_package "${DEB_BUILD_PATH}/${PACKAGE}"
@@ -229,7 +229,8 @@ function find_dependencies {
 info "Start building deb packages with timestamp $BUILD_TIMESTAMP"
 mkdir -p ${APT_REPO_PATH}
 if [ -z "$1" ]; then
-    PACKAGES=$(find ${DEB_BUILD_PATH}/* -maxdepth 0 -type d -not -name catkin_tools_prebuild)
+    #PACKAGES=$(find ${DEB_BUILD_PATH}/* -maxdepth 0 -type d -not -name catkin_tools_prebuild)
+    PACKAGES=$(catkin list --workspace $ROSWSS_ROOT --profile deb_pkgs --unformatted)
 else
     PACKAGES=""
     if [ "$1" = "--no-deps" ]; then
@@ -261,7 +262,7 @@ else
     done
 fi
 
-parallel_build_deb_packages ${PACKAGES}
+parallel_build_deb_packages "${PACKAGES}"
 RESULT=$?
 info "Done building. (Error code: ${RESULT})"
 exit $RESULT
