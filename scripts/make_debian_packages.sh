@@ -19,8 +19,9 @@ function add_debian_pkg_to_rosdep() {
 function build_deb_from_ros_package() {
     local PKG_BUILD_PATH=$1
     if [ ! -d "${PKG_BUILD_PATH}" ]; then
-        error "Build path for package does not exist: '$PKG_BUILD_PATH'"
-        return -1;
+        mkdir "${PKG_BUILD_PATH}"
+        #error "Build path for package does not exist: '$PKG_BUILD_PATH'"
+        #return -1;
     fi
     
     local PKG_NAME=$(basename ${PKG_BUILD_PATH})
@@ -128,7 +129,7 @@ function parallel_build_deb_packages() {
     local QUEUE=( $@ )
     local NEW_QUEUE
     local READY_TO_BUILD_QUEUE
-    
+
     function wait_with_status() {
         BUILD_COUNT=$((BUILD_COUNT+1))
         if wait -n; then
@@ -160,7 +161,7 @@ function parallel_build_deb_packages() {
         done
         return 0
     }
-    
+
     
     # Dont build parallel without dependency management
     local MAX_THREADS
@@ -169,14 +170,14 @@ function parallel_build_deb_packages() {
        MAX_THREADS=4
     else
        MAX_THREADS=$(echo $ROS_PARALLEL_JOBS | egrep -o "[0-9]+")
-        fi
+    fi
     while [ ! -z "$QUEUE" ]; do
         NEW_QUEUE=""
         READY_TO_BUILD_QUEUE=""
         for PACKAGE in ${QUEUE[@]}; do
             if ready_to_build $PACKAGE; then
                 READY_TO_BUILD_QUEUE="$READY_TO_BUILD_QUEUE $PACKAGE"
-        else
+            else
                 NEW_QUEUE="$NEW_QUEUE $PACKAGE"
             fi
         done
@@ -184,7 +185,7 @@ function parallel_build_deb_packages() {
         for PACKAGE in ${READY_TO_BUILD_QUEUE[@]}; do
             if [ "$(jobs | wc -l)" -ge $MAX_THREADS ]; then
                 wait_with_status
-        fi
+            fi
             info "Started build of $PACKAGE"
             build_package $PACKAGE &
         done
