@@ -128,20 +128,20 @@ function parallel_build_deb_packages() {
     local QUEUE=( $@ )
     
     function build_package() {
-        build_deb_from_ros_package "${DEB_BUILD_PATH}/${PACKAGE}"
+        build_deb_from_ros_package "${DEB_BUILD_PATH}/$1"
         return $?
     }
 
     function ready_to_build() {
-        SUB_DEPENDENCIES=$(rospack depends $PACKAGE 2> /dev/null)
+        SUB_DEPENDENCIES=$(rospack depends $1 2> /dev/null)
         # If rospack depends failed because one dependency is not a proper ROS dependency, we
         # try again using a slower custom implementation, this shouldn't be necessary anymore
         # with noetic upwards if they accepted my PR
         if [[ $? != 0 ]]; then
-            SUB_DEPENDENCIES=$(find_dependencies $PACKAGE)
+            SUB_DEPENDENCIES=$(find_dependencies $1)
         fi
         for DEPENDENCY in $SUB_DEPENDENCIES; do
-            for PKG in $QUEUE; do
+            for PKG in ${QUEUE[@]}; do
                 if [[ "$PKG" == "$DEPENDENCY" ]]; then
                     return 1
                 fi
@@ -161,12 +161,13 @@ function parallel_build_deb_packages() {
     while [ ! -z "${QUEUE}" ]; do
         PACKAGE=${QUEUE[@]:0:1}
         QUEUE=( ${QUEUE[@]:1} )
-        if ! ready_to_build; then
-            QUEUE="$QUEUE $PACKAGE"
+        if ! ready_to_build $PACKAGE; then
+            QUEUE=( ${QUEUE[@]} $PACKAGE )
             continue
         fi
+        info "Started build of $PACKAGE"
         BUILD_COUNT=$((BUILD_COUNT+1))
-        if build_package; then
+        if build_package $PACKAGE; then
             SUCCESSES=$((SUCCESSES+1))
             info "Finished $BUILD_COUNT of $TOTAL builds. ($SUCCESSES successful)"
         else
@@ -203,7 +204,11 @@ catkin config  --workspace $ROSWSS_ROOT --profile deb_pkgs --build-space ${DEB_B
     --devel-space ${DEB_DEVEL_PATH} --install-space "/opt/${ROSWSS_PROJECT_NAME}" -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null 2>&1
 
 info "Cleaning packages..."
-catkin clean --workspace $ROSWSS_ROOT --profile deb_pkgs $@
+if [ "$1" == "--no-deps" ]; then
+    catkin clean --workspace $ROSWSS_ROOT --profile deb_pkgs ${@:1}
+else 
+    catkin clean --workspace $ROSWSS_ROOT --profile deb_pkgs $@
+fi
 
 info "Building packages..."
 catkin build --no-status --force-color --workspace $ROSWSS_ROOT --profile deb_pkgs $@ || exit 1
@@ -235,10 +240,14 @@ else
     PACKAGES=""
     if [ "$1" = "--no-deps" ]; then
         shift
+        for PACKAGE in $@; do
+            PACKAGES="$PACKAGES $PACKAGE"
+        done
     else
         # find dependencies that are within this workspace and build them as well
         DEPENDENCIES=$({
             for PACKAGE in $@; do
+                echo $PACKAGE
                 SUB_DEPENDENCIES=$(rospack depends $PACKAGE 2> /dev/null)
                 # If rospack depends failed because one dependency is not a proper ROS dependency, we
                 # try again using a slower custom implementation, this shouldn't be necessary anymore
@@ -256,10 +265,6 @@ else
             PACKAGES="$PACKAGES $PACKAGE"
         done
     fi
-
-    for PACKAGE in $@; do
-        PACKAGES="$PACKAGES $PACKAGE"
-    done
 fi
 
 parallel_build_deb_packages "${PACKAGES}"
