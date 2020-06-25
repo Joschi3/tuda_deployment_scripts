@@ -126,6 +126,16 @@ function parallel_build_deb_packages() {
     local SUCCESSES=0
     local TOTAL=$(echo $@ | wc -w)
     local QUEUE=( $@ )
+    local NEW_QUEUE
+    local READY_TO_BUILD_QUEUE
+    
+    function wait_with_status() {
+        BUILD_COUNT=$((BUILD_COUNT+1))
+        if wait -n; then
+            SUCCESSES=$((SUCCESSES+1))
+            info "Finished build $BUILD_COUNT of $TOTAL. ($SUCCESSES successful)"
+        fi
+    }
     
     function build_package() {
         build_deb_from_ros_package "${DEB_BUILD_PATH}/$1"
@@ -138,6 +148,7 @@ function parallel_build_deb_packages() {
         # try again using a slower custom implementation, this shouldn't be necessary anymore
         # with noetic upwards if they accepted my PR
         if [[ $? != 0 ]]; then
+            warn "Falling back to slower dependency search implementation because $1 has broken depends using rospack."
             SUB_DEPENDENCIES=$(find_dependencies $1)
         fi
         for DEPENDENCY in $SUB_DEPENDENCIES; do
@@ -150,35 +161,38 @@ function parallel_build_deb_packages() {
         return 0
     }
     
+    
     # Dont build parallel without dependency management
-    #local MAX_THREADS
-    ## build deb packages in parallel
-    #if [ "$ROS_PARALLEL_JOBS" = "" ]; then
-    #    MAX_THREADS=4
-    #else
-    #    MAX_THREADS=$(echo $ROS_PARALLEL_JOBS | egrep -o "[0-9]+")
-    #fi
-    while [ ! -z "${QUEUE}" ]; do
-        PACKAGE=${QUEUE[@]:0:1}
-        QUEUE=( ${QUEUE[@]:1} )
-        if ! ready_to_build $PACKAGE; then
-            QUEUE=( ${QUEUE[@]} $PACKAGE )
-            continue
+    local MAX_THREADS
+    # build deb packages in parallel
+    if [ "$ROS_PARALLEL_JOBS" = "" ]; then
+       MAX_THREADS=4
+    else
+       MAX_THREADS=$(echo $ROS_PARALLEL_JOBS | egrep -o "[0-9]+")
         fi
-        info "Started build of $PACKAGE"
-        BUILD_COUNT=$((BUILD_COUNT+1))
-        if build_package $PACKAGE; then
-            SUCCESSES=$((SUCCESSES+1))
-            info "Finished $BUILD_COUNT of $TOTAL builds. ($SUCCESSES successful)"
+    while [ ! -z "$QUEUE" ]; do
+        NEW_QUEUE=""
+        READY_TO_BUILD_QUEUE=""
+        for PACKAGE in ${QUEUE[@]}; do
+            if ready_to_build $PACKAGE; then
+                READY_TO_BUILD_QUEUE="$READY_TO_BUILD_QUEUE $PACKAGE"
         else
-            error "Build of $PACKAGE failed!"
+                NEW_QUEUE="$NEW_QUEUE $PACKAGE"
+            fi
+        done
+        QUEUE=( $NEW_QUEUE )
+        for PACKAGE in ${READY_TO_BUILD_QUEUE[@]}; do
+            if [ "$(jobs | wc -l)" -ge $MAX_THREADS ]; then
+                wait_with_status
         fi
-        
+            info "Started build of $PACKAGE"
+            build_package $PACKAGE &
+        done
     done
-    # # wait for remaining jobs
-    # while [ "$(jobs | wc -l)" -gt 0 ]; do
-    #     wait_with_status
-    # done
+    # wait for remaining jobs
+    while [ "$(jobs | wc -l)" -gt 0 ]; do
+        wait_with_status
+    done
     
     if [[ $SUCCESSES != $TOTAL ]]; then
       return 1
@@ -204,7 +218,7 @@ catkin config  --workspace $ROSWSS_ROOT --profile deb_pkgs --build-space ${DEB_B
     --devel-space ${DEB_DEVEL_PATH} --install-space "/opt/${ROSWSS_PROJECT_NAME}" -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null 2>&1
 
 info "Cleaning packages..."
-if [ "$1" == "--no-deps" ]; then
+if [ "$1" = "--no-deps" ]; then
     catkin clean --workspace $ROSWSS_ROOT --profile deb_pkgs ${@:1}
 else 
     catkin clean --workspace $ROSWSS_ROOT --profile deb_pkgs $@
