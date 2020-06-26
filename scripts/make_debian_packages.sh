@@ -123,25 +123,15 @@ function build_deb_from_ros_package() {
 }
 
 function parallel_build_deb_packages() {
-    local BUILD_COUNT=0
+    local PROCESSING=0
     local SUCCESSES=0
     local TOTAL=$(echo $@ | wc -w)
     local QUEUE=( $@ )
     local NEW_QUEUE
     local READY_TO_BUILD_QUEUE
-
-    function wait_with_status() {
-        BUILD_COUNT=$((BUILD_COUNT+1))
-        if wait -n; then
-            SUCCESSES=$((SUCCESSES+1))
-            info "Finished build $BUILD_COUNT of $TOTAL. ($SUCCESSES successful)"
-        fi
-    }
-    
-    function build_package() {
-        build_deb_from_ros_package "${DEB_BUILD_PATH}/$1"
-        return $?
-    }
+    local PIDS
+    local EXIT_CODES
+    local FAILED_PACKAGES
 
     function ready_to_build() {
         SUB_DEPENDENCIES=$(rospack depends $1 2> /dev/null)
@@ -171,6 +161,8 @@ function parallel_build_deb_packages() {
     else
        MAX_THREADS=$(echo $ROS_PARALLEL_JOBS | egrep -o "[0-9]+")
     fi
+    EXIT_CODES=()
+    FAILED_PACKAGES=()
     while [ ! -z "$QUEUE" ]; do
         NEW_QUEUE=""
         READY_TO_BUILD_QUEUE=""
@@ -182,21 +174,32 @@ function parallel_build_deb_packages() {
             fi
         done
         QUEUE=( $NEW_QUEUE )
+        PIDS=()
         for PACKAGE in ${READY_TO_BUILD_QUEUE[@]}; do
             if [ "$(jobs | wc -l)" -ge $MAX_THREADS ]; then
-                wait_with_status
+                wait -n
             fi
-            info "Started build of $PACKAGE"
-            build_package $PACKAGE &
+            PROCESSING=$((PROCESSING+1))
+            info "[$PROCESSING/$TOTAL] Started build of $PACKAGE"
+            build_deb_from_ros_package "${DEB_BUILD_PATH}/$PACKAGE" &
+            PIDS+=($!)
+        done
+        # wait for remaining jobs
+        for i in ${!PIDS[@]}; do
+            wait ${PIDS[i]}
+            RESULT=$?
+            if [ $RESULT -ne 0 ]; then
+                EXIT_CODES+=($RESULT)
+                FAILED_PACKAGES+=(${READY_TO_BUILD_QUEUE[i]})
+            fi
         done
     done
-    # wait for remaining jobs
-    while [ "$(jobs | wc -l)" -gt 0 ]; do
-        wait_with_status
-    done
     
-    if [[ $SUCCESSES != $TOTAL ]]; then
-      return 1
+    if [ ! -z "$FAILED_PACKAGES" ]; then
+        for i in ${!FAILED_PACKAGES[@]}; do
+            error "Build of ${FAILED_PACKAGES[i]} failed with exit code: ${EXIT_CODES[i]}"
+        done
+        return 1
     fi
 }
 
@@ -220,7 +223,7 @@ catkin config  --workspace $ROSWSS_ROOT --profile deb_pkgs --build-space ${DEB_B
 
 info "Cleaning packages..."
 if [ "$1" = "--no-deps" ]; then
-    catkin clean --workspace $ROSWSS_ROOT --profile deb_pkgs ${@:1}
+    catkin clean --workspace $ROSWSS_ROOT --profile deb_pkgs ${@:2}
 else 
     catkin clean --workspace $ROSWSS_ROOT --profile deb_pkgs $@
 fi
