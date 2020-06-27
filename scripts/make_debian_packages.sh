@@ -124,16 +124,14 @@ function build_deb_from_ros_package() {
 
 function parallel_build_deb_packages() {
     local PROCESSING=0
-    local SUCCESSES=0
     local TOTAL=$(echo $@ | wc -w)
     local QUEUE=( $@ )
     local NEW_QUEUE
     local READY_TO_BUILD_QUEUE
-    local PIDS
-    local EXIT_CODES
-    local FAILED_PACKAGES
+    local EXIT_CODE=0
 
     function ready_to_build() {
+        local SUB_DEPENDENCIES
         SUB_DEPENDENCIES=$(rospack depends $1 2> /dev/null)
         # If rospack depends failed because one dependency is not a proper ROS dependency, we
         # try again using a slower custom implementation, this shouldn't be necessary anymore
@@ -157,12 +155,13 @@ function parallel_build_deb_packages() {
     local MAX_THREADS
     # build deb packages in parallel
     if [ "$ROS_PARALLEL_JOBS" = "" ]; then
-       MAX_THREADS=4
+        MAX_THREADS=4
     else
-       MAX_THREADS=$(echo $ROS_PARALLEL_JOBS | egrep -o "[0-9]+")
+        MAX_THREADS=$(echo $ROS_PARALLEL_JOBS | egrep -o "[0-9]+")
     fi
-    EXIT_CODES=()
-    FAILED_PACKAGES=()
+    # Unfortunately it is not easy to keep track of which packages failed because wait PID only works for some time
+    # after the subprocess ended. It would require to test each PID of the active jobs whenever wait -n terminates to see
+    # which job(s) ended
     while [ ! -z "$QUEUE" ]; do
         NEW_QUEUE=""
         READY_TO_BUILD_QUEUE=""
@@ -174,33 +173,28 @@ function parallel_build_deb_packages() {
             fi
         done
         QUEUE=( $NEW_QUEUE )
-        PIDS=()
         for PACKAGE in ${READY_TO_BUILD_QUEUE[@]}; do
             if [ "$(jobs | wc -l)" -ge $MAX_THREADS ]; then
-                wait -n
+                if ! wait -n; then
+                    EXIT_CODE=1
+                fi
             fi
             PROCESSING=$((PROCESSING+1))
             info "[$PROCESSING/$TOTAL] Started build of $PACKAGE"
             build_deb_from_ros_package "${DEB_BUILD_PATH}/$PACKAGE" &
-            PIDS+=($!)
         done
-        # wait for remaining jobs
-        for i in ${!PIDS[@]}; do
-            wait ${PIDS[i]}
-            RESULT=$?
-            if [ $RESULT -ne 0 ]; then
-                EXIT_CODES+=($RESULT)
-                FAILED_PACKAGES+=(${READY_TO_BUILD_QUEUE[i]})
+        # wait for remaining jobs (normal wait for all processes always finishes with 0)
+        while [ "$(jobs | wc -l)" -gt 0 ]; do
+            if ! wait -n; then
+                EXIT_CODE=1
             fi
         done
     done
     
-    if [ ! -z "$FAILED_PACKAGES" ]; then
-        for i in ${!FAILED_PACKAGES[@]}; do
-            error "Build of ${FAILED_PACKAGES[i]} failed with exit code: ${EXIT_CODES[i]}"
-        done
-        return 1
+    if [ $EXIT_CODE -ne 0 ]; then
+        error "Some builds failed!"
     fi
+    return $EXIT_CODE
 }
 
 which bloom-generate >/dev/null || {
