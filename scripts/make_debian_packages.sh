@@ -211,15 +211,17 @@ for dir in ${ROSWSS_SCRIPTS//:/ }; do
 done
 
 # create catkin profile for deb package builds
-catkin profile --workspace $ROSWSS_ROOT remove deb_pkgs >/dev/null 2>&1
+#catkin profile --workspace $ROSWSS_ROOT remove deb_pkgs >/dev/null 2>&1
 catkin config  --workspace $ROSWSS_ROOT --profile deb_pkgs --build-space ${DEB_BUILD_PATH} \
     --devel-space ${DEB_DEVEL_PATH} --install-space "/opt/${ROSWSS_PROJECT_NAME}" -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null 2>&1
 
 info "Cleaning packages..."
 if [ "$1" = "--no-deps" ]; then
-    catkin clean --workspace $ROSWSS_ROOT --profile deb_pkgs ${@:2}
+    catkin clean --yes --workspace $ROSWSS_ROOT --profile deb_pkgs ${@:2}
+elif [ -z "$1" ]; then
+    catkin clean --yes --workspace $ROSWSS_ROOT --profile deb_pkgs --devel --build
 else 
-    catkin clean --workspace $ROSWSS_ROOT --profile deb_pkgs $@
+    catkin clean --yes --workspace $ROSWSS_ROOT --profile deb_pkgs $@
 fi
 
 info "Building packages..."
