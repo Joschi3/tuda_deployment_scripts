@@ -134,9 +134,10 @@ function parallel_build_deb_packages() {
         local SUB_DEPENDENCIES
         SUB_DEPENDENCIES=$(rospack depends $1 2> /dev/null)
         # If rospack depends failed because one dependency is not a proper ROS dependency, we
-        # try again using a slower custom implementation, this shouldn't be necessary anymore
-        # with noetic upwards if they accepted my PR
-        if [[ $? != 0 ]]; then
+        # try again using a slower custom implementation, this is no longer necessary using
+        # the noetic version since they accepted my PR. In the noetic version, the result will
+        # be not equal to zero but the standard output will not be empty
+        if [[ $? != 0 && -z "${SUB_DEPENDENCIES}" ]]; then
             warn "Falling back to slower dependency search implementation because $1 has broken depends using rospack."
             SUB_DEPENDENCIES=$(find_dependencies $1)
         fi
@@ -215,15 +216,6 @@ done
 catkin config  --workspace $ROSWSS_ROOT --profile deb_pkgs --build-space ${DEB_BUILD_PATH} \
     --devel-space ${DEB_DEVEL_PATH} --install-space "/opt/${ROSWSS_PROJECT_NAME}" -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null 2>&1
 
-info "Cleaning packages..."
-if [ "$1" = "--no-deps" ]; then
-    catkin clean --yes --workspace $ROSWSS_ROOT --profile deb_pkgs ${@:2}
-elif [ -z "$1" ]; then
-    catkin clean --yes --workspace $ROSWSS_ROOT --profile deb_pkgs --devel --build
-else 
-    catkin clean --yes --workspace $ROSWSS_ROOT --profile deb_pkgs $@
-fi
-
 info "Building packages..."
 catkin build --no-status --force-color --workspace $ROSWSS_ROOT --profile deb_pkgs $@ || exit 1
 
@@ -264,9 +256,10 @@ else
                 echo $PACKAGE
                 SUB_DEPENDENCIES=$(rospack depends $PACKAGE 2> /dev/null)
                 # If rospack depends failed because one dependency is not a proper ROS dependency, we
-                # try again using a slower custom implementation, this shouldn't be necessary anymore
-                # with noetic upwards if they accepted my PR
-                if [[ $? != 0 ]]; then
+                # try again using a slower custom implementation, this is no longer necessary using
+                # the noetic version since they accepted my PR. In the noetic version, the result will
+                # be not equal to zero but the standard output will not be empty
+                if [[ $? != 0 && -z "${SUB_DEPENDENCIES}" ]]; then
                     SUB_DEPENDENCIES=$(find_dependencies $PACKAGE)
                 fi
                 for DEPENDENCY in $SUB_DEPENDENCIES; do
