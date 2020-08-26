@@ -17,10 +17,14 @@ function add_pkg_to_rosdep() {
 
 function add_local_rosdeps() {
     local FORCE=$1
+    local BLACKLISTED=$(${BASE_PATH}/scripts/get_blacklisted_packages.py --workspace ${ROSWSS_ROOT} --profile deb_pkgs)
 
     # add all local ROS packages from build dir to rosdep
     for PKG_BUILD_PATH in $(catkin --no-color list --unformatted --quiet --workspace ${ROSWSS_ROOT} | sort); do
         local PKG_NAME=$(basename ${PKG_BUILD_PATH})
+        if [[ ${BLACKLISTED} =~ (^|[[:space:]])"${PKG_NAME}"($|[[:space:]]) ]]; then
+            continue
+        fi
         add_pkg_to_rosdep ${PKG_NAME}
     done
 

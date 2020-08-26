@@ -4,3 +4,5 @@
 *.rej
 .idea/
 .vscode/
+*.pyc
+
