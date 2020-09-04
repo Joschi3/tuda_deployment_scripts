@@ -5,6 +5,7 @@
 
 cd $ROSWSS_ROOT
 
+BASE_PATH=$(readlink -f $(dirname $0)/..)
 DEB_BUILD_PATH="$DEB_BASE_PATH/build"
 DEB_DEVEL_PATH="$DEB_BASE_PATH/devel"
 BUILD_TIMESTAMP="$(date -u "+%Y%m%d-%H%M%SUTC")"
@@ -129,6 +130,7 @@ function parallel_build_deb_packages() {
     local NEW_QUEUE
     local READY_TO_BUILD_QUEUE
     local EXIT_CODE=0
+    local BLACKLISTED=$(${BASE_PATH}/scripts/get_blacklisted_packages.py --workspace ${ROSWSS_ROOT} --profile deb_pkgs)
 
     function ready_to_build() {
         local SUB_DEPENDENCIES
@@ -150,6 +152,16 @@ function parallel_build_deb_packages() {
         done
         return 0
     }
+
+    # Remove blacklisted packages
+    NEW_QUEUE=""
+    for PACKAGE in ${QUEUE[@]}; do
+        if [[ ${BLACKLISTED} =~ (^|[[:space:]])"${PACKAGE}"($|[[:space:]]) ]]; then
+            continue
+        fi
+        NEW_QUEUE="$NEW_QUEUE $PACKAGE"
+    done
+    QUEUE=( $NEW_QUEUE )
 
     
     # Dont build parallel without dependency management
