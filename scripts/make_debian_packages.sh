@@ -28,8 +28,9 @@ function build_deb_from_ros_package() {
     local PKG_NAME=$(basename ${PKG_BUILD_PATH})
     local DEBIAN_PKG_NAME_PROJECT=$(to_debian_pkg_name "$PKG_NAME")
 
-    rm $APT_REPO_PATH/$DEBIAN_PKG_NAME_PROJECT*.deb 2>/dev/null
-    rm $APT_REPO_PATH/$DEBIAN_PKG_NAME_PROJECT*.ddeb 2>/dev/null
+    # Delete OLD leftover debian packages
+    rm $APT_REPO_PATH/${DEBIAN_PKG_NAME_PROJECT}_*.deb 2>/dev/null
+    rm $APT_REPO_PATH/${DEBIAN_PKG_NAME_PROJECT}_*.ddeb 2>/dev/null
 
     # search for package src path locally to make sure we find local packages, not released ones in /opt/ros/...
     #PKG_SRC_PATH=$(egrep -lir --include=package.xml "<name>$PKG_NAME</name>" ${ROSWSS_ROOT}/src | xargs dirname)
