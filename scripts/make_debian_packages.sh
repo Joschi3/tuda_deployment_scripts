@@ -85,11 +85,6 @@ function build_deb_from_ros_package() {
     #sed -i -e 's:dh_shlibdeps -l:dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info -l:g' debian/rules
     sed -i -e 's:dh_shlibdeps -l:return 0 #:g' debian/rules
 
-    # set output dir for the deb package
-    echo "" >>debian/rules
-    echo "override_dh_builddeb:" >>debian/rules
-    echo -e "\tdh_builddeb --destdir=$APT_REPO_PATH" >>debian/rules
-
     # prevent dh_fixperms to change file permissions in /etc and /root
     echo "" >>debian/rules
     echo "override_dh_fixperms:" >>debian/rules
@@ -112,12 +107,25 @@ function build_deb_from_ros_package() {
     sed -i -e '1 s:'"$OS_VERSION"'):'"$OS_VERSION"'-'"$BUILD_INFO"'):g' debian/changelog
 
     # start the build process for the deb package
-    fakeroot debian/rules binary >debian/build.log 2>&1
+    dpkg-buildpackage -b -d -uc -us -ui >debian/build.log 2>&1
     RESULT=$?
     if [ ${RESULT} -ne 0 ]; then
         error "Compilation of deb package failed for package '$PKG_NAME'."
         error "See $(readlink -f debian/build.log) for details."
         return ${RESULT}
+    fi
+
+    local OUTPUT_FILE=$(ls -1 .. | grep ^${DEBIAN_PKG_NAME_PROJECT}_.*\.deb$ | tail -1)
+    if [ -z "${OUTPUT_FILE}" ] || ! [ -f "../${OUTPUT_FILE}" ]; then
+        error "No deb was generated despite compilation being successful!"
+        return -1
+    fi
+
+    mv "../${OUTPUT_FILE}" ${APT_REPO_PATH}
+    RESULT=$?
+    if [ ${RESULT} -ne 0 ]; then
+        error "Failed to move deb file to output directory!"
+        return -1
     fi
     add_debian_pkg_to_rosdep "${PKG_NAME}" "${DEBIAN_PKG_NAME_PROJECT}"
     success "Compiled deb package '$PKG_NAME'."
