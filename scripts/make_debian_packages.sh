@@ -71,7 +71,7 @@ function build_deb_from_ros_package() {
     find ./debian -type f -print0 | xargs -0 sed -i 's/'"$DEBIAN_PKG_NAME_ROS"'/'"$DEBIAN_PKG_NAME_PROJECT"'/g'
 
     # use environment setup of this workspace
-    sed -i -e 's:/opt/ros/melodic/setup.sh:'"${DEB_DEVEL_PATH}"'/setup.sh:g' debian/rules
+    sed -i -e 's:/opt/ros/'"${ROS_DISTRO}"'/setup.sh:'"${DEB_DEVEL_PATH}"'/setup.sh:g' debian/rules
 
     # use standard make instead of cmake to build the binaries
     sed -i -e 's:-v --buildsystem=cmake::g' debian/rules
@@ -79,8 +79,8 @@ function build_deb_from_ros_package() {
     # set install prefix in make files
     local CMAKE_INSTALL_PREFIX="/opt/${ROSWSS_PROJECT_NAME}"
     cmake -DCMAKE_INSTALL_PREFIX="$CMAKE_INSTALL_PREFIX" -DCATKIN_BUILD_BINARY_PACKAGE="1" . >cmake.log 2>&1
-    sed -i -e 's:CMAKE_INSTALL_PREFIX="/opt/ros/melodic":CMAKE_INSTALL_PREFIX="'"$CMAKE_INSTALL_PREFIX"'":g' debian/rules
-    sed -i -e 's://opt/ros/melodic/lib/:'"$CMAKE_INSTALL_PREFIX"'/lib:g' debian/rules
+    sed -i -e 's:CMAKE_INSTALL_PREFIX="/opt/ros/'"${ROS_DISTRO}"'":CMAKE_INSTALL_PREFIX="'"$CMAKE_INSTALL_PREFIX"'":g' debian/rules
+    sed -i -e 's://opt/ros/'"${ROS_DISTRO}"'/lib/:'"$CMAKE_INSTALL_PREFIX"'/lib:g' debian/rules
 
     # disable lib dependency checking TODO: fix ceres_catkin and glog_catkin so they work without this
     #sed -i -e 's:dh_shlibdeps -l:dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info -l:g' debian/rules
