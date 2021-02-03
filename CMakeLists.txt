@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 2.8.3)
-project(tuda_deployment_scripts)
+cmake_minimum_required(VERSION 3.0)
+project(tuda_deployment_scripts VERSION 1.0)
 
 find_package(catkin REQUIRED)
 
