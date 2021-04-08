@@ -68,7 +68,7 @@ function build_deb_from_ros_package() {
 
     # rename package to avoid conflicts with publicly released ones
     local DEBIAN_PKG_NAME_ROS=ros-${ROS_DISTRO}-$(echo ${PKG_NAME} | tr '_' '-')
-    find ./debian -type f -print0 | xargs -0 sed -i 's/'"$DEBIAN_PKG_NAME_ROS"'/'"$DEBIAN_PKG_NAME_PROJECT"'/g'
+    find ./debian -type f -print0 | xargs -0 sed -i 's/(^|[^[:alnum:]-])'"$DEBIAN_PKG_NAME_ROS"'([^[:alnum:]-]|-dbgsym|$)/\1'"$DEBIAN_PKG_NAME_PROJECT"'\2/g'
 
     # use environment setup of this workspace
     sed -i -e 's:/opt/ros/'"${ROS_DISTRO}"'/setup.sh:'"${DEB_DEVEL_PATH}"'/setup.sh:g' debian/rules
