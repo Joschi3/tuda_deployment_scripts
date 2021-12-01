@@ -34,7 +34,7 @@ function build_deb_from_ros_package() {
 
     # search for package src path locally to make sure we find local packages, not released ones in /opt/ros/...
     #PKG_SRC_PATH=$(egrep -lir --include=package.xml "<name>$PKG_NAME</name>" ${ROSWSS_ROOT}/src | xargs dirname)
-    local PKG_SRC_PATH=$(catkin locate --workspace $ROSWSS_ROOT --profile deb_pkgs --src $PKG_NAME 2>/dev/null)
+    local PKG_SRC_PATH=$(catkin locate --workspace $ROSWSS_ROOT --profile deb_pkgs -s $PKG_NAME 2>/dev/null)
 
     local PKG_IS_GIT_PKG=0
     local PKG_GIT_BRANCH
