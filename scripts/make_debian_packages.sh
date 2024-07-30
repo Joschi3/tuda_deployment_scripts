@@ -3,7 +3,13 @@
 . $(dirname $0)/helper/globals.sh
 . $(dirname $0)/helper/log_output.sh
 
+#chek that ROSWSS_PROJECT_NAME is set
+[ -z "$ROSWSS_PROJECT_NAME" ] && error "ROSWSS_PROJECT_NAME is not set. Set it to the name of the project (e.g. hector)!" && exit 1
+
+# check that ROSWSS_ROOT is set
+[ -z "$ROSWSS_ROOT" ] && error "ROSWSS_ROOT is not set. Set it to the Workspace root!" && exit 1
 cd $ROSWSS_ROOT
+
 
 BASE_PATH=$(readlink -f $(dirname $0)/..)
 DEB_BUILD_PATH="$DEB_BASE_PATH/build"
@@ -17,8 +23,53 @@ function add_debian_pkg_to_rosdep() {
     cat $ROSDEP_FILE | grep -e "^${PKG_NAME}:" >/dev/null 2>&1 || create_rosdep_entry "${PKG_NAME}" "${DEBIAN_PKG_NAME}" >> $ROSDEP_FILE
 }
 
+# Function to find local dependencies of a specified package in a ROS workspace
+find_local_dependencies() {
+    local package_name=$1
+ 
+    # List all local packages in the workspace
+    local local_packages=$(colcon list --names-only --base-paths "${ROSWSS_ROOT}")
+    if [[ -z "$local_packages" ]]; then
+        echo "No packages found in the workspace."
+        return 1
+    fi
+
+    # Find the directory of the specified package
+    local package_dir=$(ros2 pkg prefix "$package_name" --share)
+
+    # Get all dependencies from package.xml
+    if [ ! -f "$package_dir/package.xml" ]; then
+        echo "No package.xml found for '$package_name'."
+        return 1
+    fi
+
+    # Extract dependencies
+    local dependencies=$(grep -Po '(?<=<depend>)\w+|(?<=<build_depend>)\w+|(?<=<exec_depend>)\w+' "$package_dir/package.xml")
+
+    # Check which dependencies are also local
+    local local_dependencies=()
+    for dep in $dependencies; do
+        if [[ "$dep" != "$package_name" ]] && echo "$local_packages" | grep -wq "$dep"; then
+            local_dependencies+=("$dep")
+        fi
+    done
+
+    # Output local dependencies
+    if [ ${#local_dependencies[@]} -eq 0 ]; then
+        #echo "No local dependencies found for '$package_name'."
+        echo ""
+    else
+        for dep in "${local_dependencies[@]}"; do
+            echo "$dep"
+        done
+    fi
+}
+
+
+
 function build_deb_from_ros_package() {
     local PKG_BUILD_PATH=$1
+    echo "Building package in $PKG_BUILD_PATH"
     if [ ! -d "${PKG_BUILD_PATH}" ]; then
         mkdir "${PKG_BUILD_PATH}"
         #error "Build path for package does not exist: '$PKG_BUILD_PATH'"
@@ -33,8 +84,7 @@ function build_deb_from_ros_package() {
     rm $APT_REPO_PATH/${DEBIAN_PKG_NAME_PROJECT}_*.ddeb 2>/dev/null
 
     # search for package src path locally to make sure we find local packages, not released ones in /opt/ros/...
-    #PKG_SRC_PATH=$(egrep -lir --include=package.xml "<name>$PKG_NAME</name>" ${ROSWSS_ROOT}/src | xargs dirname)
-    local PKG_SRC_PATH=$(catkin locate --workspace $ROSWSS_ROOT --profile deb_pkgs -s $PKG_NAME 2>/dev/null)
+    local PKG_SRC_PATH=${ROSWSS_ROOT}/$(colcon info $PKG_NAME | grep 'path:' | awk '{print $2}')
 
     local PKG_IS_GIT_PKG=0
     local PKG_GIT_BRANCH
@@ -50,37 +100,46 @@ function build_deb_from_ros_package() {
         PKG_GIT_URL=$(git remote get-url $(git remote))
     }
 
-    cd ${PKG_BUILD_PATH}
-
     # clean up previous deb build
     if [ -d debian ]; then
         rm -rf debian
     fi
-
     # generate debian package control files in "debian" directory
-    bloom-generate rosdebian --debug --os-name ${OS_NAME} --os-version ${OS_VERSION} --ros-distro ${ROS_DISTRO} ${PKG_SRC_PATH} >bloom.log #2>&1
+    bloom-generate rosdebian --debug --os-name ${OS_NAME} --os-version ${OS_VERSION} --ros-distro ${ROS_DISTRO} >bloom.log #2>&1
     local RESULT=$?
     if [ ${RESULT} -ne 0 ]; then
         error "Generation of deb package control files failed for package '$PKG_NAME'."
         error "See $(readlink -f bloom.log) for details."
         return ${RESULT}
     fi
+    PACKAGE_NAME_HYPHEN=$(echo ${PKG_NAME} | tr '_' '-')
+    BUILD_TYPE="RelWithDebInfo"  # Change to Debug, Release, or any other build type
+    NEW_INSTALL_DIR="/opt/${ROSWSS_PROJECT_NAME}/${ROS_DISTRO}"
+    # rename package from ros-<distro>-<package_name> to hector-<distro>-<package_name>
+    sed -i "s/ros-${ROS_DISTRO}-${PACKAGE_NAME_HYPHEN}/${DEBIAN_PKG_NAME_PROJECT}/g" debian/control
+    sed -i "s/ros-${ROS_DISTRO}-${PACKAGE_NAME_HYPHEN}/${DEBIAN_PKG_NAME_PROJECT}/g" debian/rules
+    sed -i "s/ros-${ROS_DISTRO}-${PACKAGE_NAME_HYPHEN}/${DEBIAN_PKG_NAME_PROJECT}/g" debian/changelog
+
+    # Modify rules file
+    sed -i "s|/opt/ros/${ROS_DISTRO}|${NEW_INSTALL_DIR}|g" debian/rules
+    sed -i "s|CMAKE_BUILD_TYPE=.*|CMAKE_BUILD_TYPE=${BUILD_TYPE} \\\\|g" debian/rules
+
 
     # rename package to avoid conflicts with publicly released ones
-    local DEBIAN_PKG_NAME_ROS=ros-${ROS_DISTRO}-$(echo ${PKG_NAME} | tr '_' '-')
-    find ./debian -type f -print0 | xargs -0 sed -i -r 's/(^|[^[:alnum:]-])'"$DEBIAN_PKG_NAME_ROS"'([^[:alnum:]-]|-dbgsym|$)/\1'"$DEBIAN_PKG_NAME_PROJECT"'\2/g'
+    #local DEBIAN_PKG_NAME_ROS=ros-${ROS_DISTRO}-$(echo ${PKG_NAME} | tr '_' '-')
+    #find ./debian -type f -print0 | xargs -0 sed -i -r 's/(^|[^[:alnum:]-])'"$DEBIAN_PKG_NAME_ROS"'([^[:alnum:]-]|-dbgsym|$)/\1'"$DEBIAN_PKG_NAME_PROJECT"'\2/g'
 
     # use environment setup of this workspace
-    sed -i -e 's:/opt/ros/'"${ROS_DISTRO}"'/setup.sh:'"${DEB_DEVEL_PATH}"'/setup.sh:g' debian/rules
+    #sed -i -e 's:/opt/ros/'"${ROS_DISTRO}"'/setup.sh:'"${DEB_DEVEL_PATH}"'/setup.sh:g' debian/rules
 
     # use standard make instead of cmake to build the binaries
     sed -i -e 's:-v --buildsystem=cmake::g' debian/rules
 
     # set install prefix in make files
-    local CMAKE_INSTALL_PREFIX="/opt/${ROSWSS_PROJECT_NAME}"
-    cmake -DCMAKE_INSTALL_PREFIX="$CMAKE_INSTALL_PREFIX" -DCATKIN_BUILD_BINARY_PACKAGE="1" . >cmake.log 2>&1
-    sed -i -e 's:CMAKE_INSTALL_PREFIX="/opt/ros/'"${ROS_DISTRO}"'":CMAKE_INSTALL_PREFIX="'"$CMAKE_INSTALL_PREFIX"'":g' debian/rules
-    sed -i -e 's://opt/ros/'"${ROS_DISTRO}"'/lib/:'"$CMAKE_INSTALL_PREFIX"'/lib:g' debian/rules
+    #local CMAKE_INSTALL_PREFIX="/opt/${ROSWSS_PROJECT_NAME}"
+    #cmake -DCMAKE_INSTALL_PREFIX="$CMAKE_INSTALL_PREFIX" . >cmake.log 2>&1 # TODO: -DCATKIN_BUILD_BINARY_PACKAGE="1" ??
+    #sed -i -e 's:CMAKE_INSTALL_PREFIX="/opt/ros/'"${ROS_DISTRO}"'":CMAKE_INSTALL_PREFIX="'"$CMAKE_INSTALL_PREFIX"'":g' debian/rules
+    #sed -i -e 's://opt/ros/'"${ROS_DISTRO}"'/lib/:'"$CMAKE_INSTALL_PREFIX"'/lib:g' debian/rules
 
     # disable lib dependency checking TODO: fix ceres_catkin and glog_catkin so they work without this
     #sed -i -e 's:dh_shlibdeps -l:dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info -l:g' debian/rules
@@ -108,7 +167,9 @@ function build_deb_from_ros_package() {
     sed -i -e '1 s:'"$OS_VERSION"'):'"$OS_VERSION"'-'"$BUILD_INFO"'):g' debian/changelog
 
     # start the build process for the deb package
-    dpkg-buildpackage -b -d -uc -us -ui >debian/build.log 2>&1
+    #dpkg-buildpackage -b -d -uc -us -ui >debian/build.log 2>&1
+    fakeroot debian/rules binary >debian/build.log 2>&1
+
     RESULT=$?
     if [ ${RESULT} -ne 0 ]; then
         error "Compilation of deb package failed for package '$PKG_NAME'."
@@ -129,6 +190,10 @@ function build_deb_from_ros_package() {
         return -1
     fi
     add_debian_pkg_to_rosdep "${PKG_NAME}" "${DEBIAN_PKG_NAME_PROJECT}"
+    
+    # delete intermediate folders debian and obj-x86_64-linux-gnu
+    # rm -rf debian .obj-x86_64-linux-gnu
+
     success "Compiled deb package '$PKG_NAME'."
 }
 
@@ -139,19 +204,11 @@ function parallel_build_deb_packages() {
     local NEW_QUEUE
     local READY_TO_BUILD_QUEUE
     local EXIT_CODE=0
-    local BLACKLISTED=$(${BASE_PATH}/scripts/get_blacklisted_packages.py --workspace ${ROSWSS_ROOT} --profile deb_pkgs)
+    local BLACKLISTED=$(${BASE_PATH}/scripts/get_blacklisted_packages.py --workspace ${ROSWSS_ROOT})
 
     function ready_to_build() {
         local SUB_DEPENDENCIES
-        SUB_DEPENDENCIES=$(rospack depends $1 2> /dev/null)
-        # If rospack depends failed because one dependency is not a proper ROS dependency, we
-        # try again using a slower custom implementation, this is no longer necessary using
-        # the noetic version since they accepted my PR. In the noetic version, the result will
-        # be not equal to zero but the standard output will not be empty
-        if [[ $? != 0 && -z "${SUB_DEPENDENCIES}" ]]; then
-            warn "Falling back to slower dependency search implementation because $1 has broken depends using rospack."
-            SUB_DEPENDENCIES=$(find_dependencies $1)
-        fi
+        SUB_DEPENDENCIES=$(find_local_dependencies "$PACKAGE")
         for DEPENDENCY in $SUB_DEPENDENCIES; do
             for PKG in ${QUEUE[@]}; do
                 if [[ "$PKG" == "$DEPENDENCY" ]]; then
@@ -232,37 +289,25 @@ for dir in ${ROSWSS_SCRIPTS//:/ }; do
     fi
 done
 
+# TODO: check if required using colcon
 # create catkin profile for deb package builds
 #catkin profile --workspace $ROSWSS_ROOT remove deb_pkgs >/dev/null 2>&1
-catkin config  --workspace $ROSWSS_ROOT --profile deb_pkgs --build-space ${DEB_BUILD_PATH} \
-    --devel-space ${DEB_DEVEL_PATH} --install-space "/opt/${ROSWSS_PROJECT_NAME}" -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null 2>&1
+#catkin config  --workspace $ROSWSS_ROOT --profile deb_pkgs --build-space ${DEB_BUILD_PATH} \
+#    --devel-space ${DEB_DEVEL_PATH} --install-space "/opt/${ROSWSS_PROJECT_NAME}" -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null 2>&1
 
 info "Building packages..."
-catkin build --no-status --force-color --workspace $ROSWSS_ROOT --profile deb_pkgs $@ || exit 1
+# catkin build --no-status --force-color --workspace $ROSWSS_ROOT --profile deb_pkgs $@ || exit 1
+#colcon build --base-paths $ROSWSS_ROOT --event-handlers console_direct+ --mixin deb_pkgs $@ || exit 1
+echo "Debian build path: $DEB_BUILD_PATH"
+echo "ROS workspace: $ROSWSS_ROOT"
+colcon build --base-paths $ROSWSS_ROOT --build-base ${DEB_BUILD_PATH} --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo || exit 1
 
-function _find_dependencies {
-  for item in "${PKG_DEPENDENCIES[@]}"; do
-    [[ "$1" == "$item" ]] && return
-  done
-  echo $1
-  PKG_DEPENDENCIES+=("$1")
-  for DEPENDENCY in $(rosdep keys $1); do
-    rospack find $DEPENDENCY 2> /dev/null | egrep --quiet "^${ROSWSS_ROOT}/src" && _find_dependencies $DEPENDENCY
-  done
-}
-
-function find_dependencies {
-  local PKG_DEPENDENCIES=()
-  for DEPENDENCY in $(rosdep keys $1); do
-    rospack find $DEPENDENCY 2> /dev/null | egrep --quiet "^${ROSWSS_ROOT}/src" && _find_dependencies $DEPENDENCY
-  done
-}
 
 info "Start building deb packages with timestamp $BUILD_TIMESTAMP"
 mkdir -p ${APT_REPO_PATH}
 if [ -z "$1" ]; then
-    #PACKAGES=$(find ${DEB_BUILD_PATH}/* -maxdepth 0 -type d -not -name catkin_tools_prebuild)
-    PACKAGES=$(catkin list --workspace $ROSWSS_ROOT --profile deb_pkgs --unformatted)
+    info "No packages specified, building all packages in workspace."
+    PACKAGES=$(colcon list --base-paths $ROSWSS_ROOT --names-only)
 else
     PACKAGES=""
     if [ "$1" = "--no-deps" ]; then
@@ -271,20 +316,14 @@ else
             PACKAGES="$PACKAGES $PACKAGE"
         done
     else
+        info "Building package dependencies as well."
         # find dependencies that are within this workspace and build them as well
         DEPENDENCIES=$({
             for PACKAGE in $@; do
                 echo $PACKAGE
-                SUB_DEPENDENCIES=$(rospack depends $PACKAGE 2> /dev/null)
-                # If rospack depends failed because one dependency is not a proper ROS dependency, we
-                # try again using a slower custom implementation, this is no longer necessary using
-                # the noetic version since they accepted my PR. In the noetic version, the result will
-                # be not equal to zero but the standard output will not be empty
-                if [[ $? != 0 && -z "${SUB_DEPENDENCIES}" ]]; then
-                    SUB_DEPENDENCIES=$(find_dependencies $PACKAGE)
-                fi
+                SUB_DEPENDENCIES=$(find_local_dependencies "$PACKAGE")
                 for DEPENDENCY in $SUB_DEPENDENCIES; do
-                    rospack find $DEPENDENCY | egrep --quiet "^${ROSWSS_ROOT}/src" && echo $DEPENDENCY
+                    echo $DEPENDENCY # dependency is already checked in find_dependencies
                 done
             done
         } | sort -u)
@@ -294,7 +333,7 @@ else
         done
     fi
 fi
-
+info "Start building packages: $PACKAGES"
 parallel_build_deb_packages "${PACKAGES}"
 RESULT=$?
 info "Done building. (Error code: ${RESULT})"
