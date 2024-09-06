@@ -35,7 +35,6 @@ if __name__ == "__main__":
 
     ignored_packages = find_ignored_ros_packages(args.workspace)
     if ignored_packages:
-        print("Ignored packages:")
         for package in ignored_packages:
             print(package)
     else:

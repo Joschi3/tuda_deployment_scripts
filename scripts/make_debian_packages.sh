@@ -2,6 +2,7 @@
 
 . "$(dirname "$0")/helper/globals.sh"
 . "$(dirname "$0")/helper/log_output.sh"
+. "$(dirname "$0")/rosdep_add_local_packages.sh" || exit $?
 
 #chek that ROSWSS_PROJECT_NAME is set
 [ -z "$ROSWSS_PROJECT_NAME" ] && error "ROSWSS_PROJECT_NAME is not set. Set it to the name of the project (e.g. hector)!" && exit 1
@@ -22,7 +23,6 @@ function add_debian_pkg_to_rosdep() {
     local ROSDEP_FILE=${APT_REPO_PATH}/${ROSWSS_PROJECT_NAME}.yaml
     echo "Adding debian package '$DEBIAN_PKG_NAME' to rosdep file '$ROSDEP_FILE'"
     grep -e "^${PKG_NAME}:" "$ROSDEP_FILE" >/dev/null 2>&1 || create_rosdep_entry "${PKG_NAME}" "${DEBIAN_PKG_NAME}" >>"$ROSDEP_FILE"
-    grep -e "^${PKG_NAME}:" "$ROSDEP_YAML_FILE" >/dev/null 2>&1 || create_rosdep_entry "${PKG_NAME}" "${DEBIAN_PKG_NAME}" >>"$ROSDEP_YAML_FILE"
 }
 
 # Function to find local dependencies of a specified package in a ROS workspace
@@ -117,7 +117,6 @@ function build_deb_from_ros_package() {
     # generate debian package control files in "debian" directory
     local LOG_FILE=${LOG_FOLDER}/${PKG_NAME}/bloom.log
     mkdir -p "$(dirname "${LOG_FILE}")"
-    rosdep update >/dev/null 
     bloom-generate rosdebian --debug --os-name "${OS_NAME}" --os-version "${OS_VERSION}" --ros-distro "${ROS_DISTRO}" >"${LOG_FILE}" 2>&1
     local RESULT=$?
     if [ ${RESULT} -ne 0 ]; then
@@ -290,13 +289,6 @@ which bloom-generate >/dev/null || {
     exit 1
 }
 
-# call rosdep_add_local_packages script
-for dir in ${ROSWSS_SCRIPTS//:/ }; do
-    if [ -x "${dir}/rosdep_add_local_packages.sh" ]; then
-        "${dir}"/rosdep_add_local_packages.sh || exit $?
-        break
-    fi
-done
 
 info "Building packages..."
 FILTERED_ARGS=()

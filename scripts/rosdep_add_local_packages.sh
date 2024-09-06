@@ -17,10 +17,13 @@ function add_pkg_to_rosdep() {
 
 function add_local_rosdeps() {
     local FORCE=$1
-    local BLACKLISTED=$(${BASE_PATH}/scripts/get_blacklisted_packages.py --workspace ${ROSWSS_ROOT} --profile deb_pkgs)
-
+    local BLACKLISTED=$("${BASE_PATH}"/scripts/get_blacklisted_packages.py --workspace "${ROSWSS_ROOT}")
+    CUURRENT_PWD=$(pwd)
+    cd "${ROSWSS_ROOT}" || exit 1
+    LOCAL_PKG_PATHS=$(colcon list --paths-only | sort)
+    cd "${CUURRENT_PWD}"  || exit 1
     # add all local ROS packages from build dir to rosdep
-    for PKG_BUILD_PATH in $(catkin --no-color list --unformatted --quiet --workspace ${ROSWSS_ROOT} | sort); do
+    for PKG_BUILD_PATH in $LOCAL_PKG_PATHS; do
         local PKG_NAME=$(basename ${PKG_BUILD_PATH})
         if [[ ${BLACKLISTED} =~ (^|[[:space:]])"${PKG_NAME}"($|[[:space:]]) ]]; then
             continue
@@ -32,7 +35,7 @@ function add_local_rosdeps() {
         cmp --silent ${ROSDEP_YAML_FILE}.new ${ROSDEP_YAML_FILE} && {
             rm -rf ${ROSDEP_YAML_FILE}.new
             info "rosdep already up to date."
-            exit
+            return 0
         }
     fi
 
@@ -41,5 +44,5 @@ function add_local_rosdeps() {
     mv ${ROSDEP_YAML_FILE}.new ${ROSDEP_YAML_FILE}
     rosdep update
 }
-
+echo "Adding local packages to rosdep..."
 add_local_rosdeps $1 || exit $?
