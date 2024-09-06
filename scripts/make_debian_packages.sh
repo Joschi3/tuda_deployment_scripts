@@ -40,7 +40,7 @@ find_local_dependencies() {
     fi
 
     # Find the directory of the specified package
-    package_dir=$(ros2 pkg prefix "$package_name" --share 2>/dev/null)
+    package_dir=$(colcon info "$package_name" | grep -oP '(?<=path: ).*')
 
     if [ -z "$package_dir" ]; then
         echo "Error: Package '$package_name' not found."
