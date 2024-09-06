@@ -20,8 +20,9 @@ function add_debian_pkg_to_rosdep() {
     local PKG_NAME=$1
     local DEBIAN_PKG_NAME=$2
     local ROSDEP_FILE=${APT_REPO_PATH}/${ROSWSS_PROJECT_NAME}.yaml
-    grep -e "^${PKG_NAME}:" "$ROSDEP_FILE" >/dev/null 2>&1 || create_rosdep_entry "${PKG_NAME}" "${DEBIAN_PKG_NAME}" >>$ROSDEP_FILE
-    # cat $ROSDEP_YAML_FILE | grep -e "^${PKG_NAME}:" >/dev/null 2>&1 || create_rosdep_entry "${PKG_NAME}" "${DEBIAN_PKG_NAME}" >> $ROSDEP_YAML_FILE
+    echo "Adding debian package '$DEBIAN_PKG_NAME' to rosdep file '$ROSDEP_FILE'"
+    grep -e "^${PKG_NAME}:" "$ROSDEP_FILE" >/dev/null 2>&1 || create_rosdep_entry "${PKG_NAME}" "${DEBIAN_PKG_NAME}" >>"$ROSDEP_FILE"
+    grep -e "^${PKG_NAME}:" "$ROSDEP_YAML_FILE" >/dev/null 2>&1 || create_rosdep_entry "${PKG_NAME}" "${DEBIAN_PKG_NAME}" >>"$ROSDEP_YAML_FILE"
 }
 
 # Function to find local dependencies of a specified package in a ROS workspace
@@ -60,7 +61,7 @@ find_local_dependencies() {
 
     # Output local dependencies
     if [ ${#local_dependencies[@]} -eq 0 ]; then
-        #echo "No local dependencies found for '$package_name'."
+        echo "No local dependencies found for '$package_name'."
         echo ""
     else
         for dep in "${local_dependencies[@]}"; do
@@ -238,9 +239,12 @@ function parallel_build_deb_packages() {
         READY_TO_BUILD_QUEUE=""
         for PACKAGE in "${QUEUE[@]}"; do
             if ready_to_build $PACKAGE; then
+                echo "Ready to build: $PACKAGE"
                 READY_TO_BUILD_QUEUE="$READY_TO_BUILD_QUEUE $PACKAGE"
             else
                 NEW_QUEUE="$NEW_QUEUE $PACKAGE"
+                echo "Not ready to build: $PACKAGE"
+                echo "Unmet Dependencies: $(find_local_dependencies $PACKAGE)"
             fi
         done
         QUEUE=($NEW_QUEUE)
