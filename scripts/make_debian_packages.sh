@@ -117,6 +117,7 @@ function build_deb_from_ros_package() {
     # generate debian package control files in "debian" directory
     local LOG_FILE=${LOG_FOLDER}/${PKG_NAME}/bloom.log
     mkdir -p "$(dirname "${LOG_FILE}")"
+    rosdep update >/dev/null 
     bloom-generate rosdebian --debug --os-name "${OS_NAME}" --os-version "${OS_VERSION}" --ros-distro "${ROS_DISTRO}" >"${LOG_FILE}" 2>&1
     local RESULT=$?
     if [ ${RESULT} -ne 0 ]; then
