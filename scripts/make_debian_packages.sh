@@ -185,6 +185,11 @@ function build_deb_from_ros_package() {
         return 1
     fi
 
+    dpkg -i "../${OUTPUT_FILE}" || {
+        error "Failed to install deb package '$PKG_NAME'."
+        return 1
+    }
+
     mv "../${OUTPUT_FILE}" "${APT_REPO_PATH}"
     RESULT=$?
     if [ ${RESULT} -ne 0 ]; then
@@ -298,7 +303,7 @@ for arg in "$@"; do
     fi
 done
 
-# Check if filtered arguments are provided
+# Check if filtered arguments are provided #TODO:  --install-base "/opt/${ROSWSS_PROJECT_NAME}"
 if [ ${#FILTERED_ARGS[@]} -gt 0 ]; then
     info "Building specified packages: ${FILTERED_ARGS[@]}"
     colcon build --base-paths "$ROSWSS_ROOT" --build-base "${DEB_BUILD_PATH}" --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo --packages-up-to "${FILTERED_ARGS[@]}" || exit 1
