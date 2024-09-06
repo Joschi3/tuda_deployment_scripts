@@ -36,16 +36,21 @@ find_local_dependencies() {
     local_packages=$(colcon list --names-only --base-paths "${ROSWSS_ROOT}")
     if [[ -z "$local_packages" ]]; then
         echo "No packages found in the workspace."
-        return 1
+        exit 1
     fi
 
     # Find the directory of the specified package
-    package_dir=$(ros2 pkg prefix "$package_name" --share)
+    package_dir=$(ros2 pkg prefix "$package_name" --share 2>/dev/null)
+
+    if [ -z "$package_dir" ]; then
+        echo "Error: Package '$package_name' not found."
+        exit 1
+    fi
 
     # Get all dependencies from package.xml
     if [ ! -f "$package_dir/package.xml" ]; then
         echo "No package.xml found for '$package_name'."
-        return 1
+        exit 1
     fi
 
     # Extract dependencies
@@ -61,7 +66,7 @@ find_local_dependencies() {
 
     # Output local dependencies
     if [ ${#local_dependencies[@]} -eq 0 ]; then
-        echo "No local dependencies found for '$package_name'."
+        # echo "No local dependencies found for '$package_name'."
         echo ""
     else
         for dep in "${local_dependencies[@]}"; do
@@ -199,6 +204,13 @@ function parallel_build_deb_packages() {
     local READY_TO_BUILD_QUEUE
     local EXIT_CODE=0
     local BLACKLISTED=$("${BASE_PATH}"/scripts/get_blacklisted_packages.py --workspace "${ROSWSS_ROOT}")
+
+    # TODO: remove
+    # iterate packages and print their local dependencies
+    for PACKAGE in "${QUEUE[@]}"; do
+        echo "Local dependencies of $PACKAGE:"
+        echo find_local_dependencies "$PACKAGE"
+    done
 
     function ready_to_build() {
         local SUB_DEPENDENCIES
