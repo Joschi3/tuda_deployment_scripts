@@ -66,7 +66,7 @@ find_local_dependencies() {
 
     # Output local dependencies
     if [ ${#local_dependencies[@]} -eq 0 ]; then
-        # echo "No local dependencies found for '$package_name'."
+        #echo "No local dependencies found for '$package_name'."
         echo ""
     else
         for dep in "${local_dependencies[@]}"; do
@@ -207,16 +207,16 @@ function parallel_build_deb_packages() {
 
     # TODO: remove
     # iterate packages and print their local dependencies
-    for PACKAGE in "${QUEUE[@]}"; do
+    for PACKAGE in ${QUEUE[@]}; do
         echo "Local dependencies of $PACKAGE:"
-        echo find_local_dependencies "$PACKAGE"
+        find_local_dependencies "$PACKAGE"
     done
 
     function ready_to_build() {
         local SUB_DEPENDENCIES
         SUB_DEPENDENCIES=$(find_local_dependencies "$PACKAGE")
         for DEPENDENCY in $SUB_DEPENDENCIES; do
-            for PKG in "${QUEUE[@]}"; do
+            for PKG in ${QUEUE[@]}; do
                 if [[ "$PKG" == "$DEPENDENCY" ]]; then
                     return 1
                 fi
@@ -227,7 +227,7 @@ function parallel_build_deb_packages() {
 
     # Remove blacklisted packages
     NEW_QUEUE=""
-    for PACKAGE in "${QUEUE[@]}"; do
+    for PACKAGE in ${QUEUE[@]}; do
         if [[ ${BLACKLISTED} =~ (^|[[:space:]])"${PACKAGE}"($|[[:space:]]) ]]; then
             continue
         fi
@@ -249,7 +249,7 @@ function parallel_build_deb_packages() {
     while [ ! -z "$QUEUE" ]; do
         NEW_QUEUE=""
         READY_TO_BUILD_QUEUE=""
-        for PACKAGE in "${QUEUE[@]}"; do
+        for PACKAGE in ${QUEUE[@]}; do
             if ready_to_build $PACKAGE; then
                 echo "Ready to build: $PACKAGE"
                 READY_TO_BUILD_QUEUE="$READY_TO_BUILD_QUEUE $PACKAGE"
