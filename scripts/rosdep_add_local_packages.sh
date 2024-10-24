@@ -39,10 +39,15 @@ function add_local_rosdeps() {
         }
     fi
 
-    # add workspace packages to rosdep list and update rosdep cache
-    rm -rf ${ROSDEP_YAML_FILE} 2>/dev/null
-    mv ${ROSDEP_YAML_FILE}.new ${ROSDEP_YAML_FILE}
-    rosdep update
+    # Check if the .new file exists before attempting to move it
+    if [[ -f ${ROSDEP_YAML_FILE}.new ]]; then
+        # add workspace packages to rosdep list and update rosdep cache
+        rm -rf ${ROSDEP_YAML_FILE} 2>/dev/null
+        mv ${ROSDEP_YAML_FILE}.new ${ROSDEP_YAML_FILE}
+        rosdep update
+    else
+        info "No new rosdep entries to add."
+    fi
 }
 echo "Adding local packages to rosdep..."
 add_local_rosdeps $1 || exit $?
