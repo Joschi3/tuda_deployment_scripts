@@ -256,12 +256,12 @@ function parallel_build_deb_packages() {
         READY_TO_BUILD_QUEUE=""
         for PACKAGE in ${QUEUE[@]}; do
             if ready_to_build $PACKAGE; then
-                echo "Ready to build: $PACKAGE"
+                #echo "Ready to build: $PACKAGE"
                 READY_TO_BUILD_QUEUE="$READY_TO_BUILD_QUEUE $PACKAGE"
             else
                 NEW_QUEUE="$NEW_QUEUE $PACKAGE"
-                echo "Not ready to build: $PACKAGE"
-                echo "Unmet Dependencies: $(find_local_dependencies $PACKAGE)"
+                #echo "Not ready to build: $PACKAGE"
+                #echo "Unmet Dependencies: $(find_local_dependencies $PACKAGE)"
             fi
         done
         QUEUE=($NEW_QUEUE)
