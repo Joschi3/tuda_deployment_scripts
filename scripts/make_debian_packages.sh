@@ -117,11 +117,23 @@ function build_deb_from_ros_package() {
     # generate debian package control files in "debian" directory
     local LOG_FILE=${LOG_FOLDER}/${PKG_NAME}/bloom.log
     mkdir -p "$(dirname "${LOG_FILE}")"
-    bloom-generate rosdebian --debug --os-name "${OS_NAME}" --os-version "${OS_VERSION}" --ros-distro "${ROS_DISTRO}" >"${LOG_FILE}" 2>&1
-    local RESULT=$?
+    # weird bloom-generate bug when calling it in parallel -> hence retry
+    local RETRIES=2
+    local COUNT=0
+    local RESULT=1
+    while [ ${COUNT} -lt ${RETRIES} ] && [ ${RESULT} -ne 0 ]; do
+        bloom-generate rosdebian --debug --os-name "${OS_NAME}" --os-version "${OS_VERSION}" --ros-distro "${ROS_DISTRO}" >"${LOG_FILE}" 2>&1
+        RESULT=$?
+        if [ ${RESULT} -ne 0 ]; then
+            COUNT=$((COUNT + 1))
+            error "Generation of deb package control files failed for package '$PKG_NAME'. Attempt ${COUNT} of ${RETRIES}."
+            error "See $(readlink -f bloom.log) for details."
+            if [ ${COUNT} -lt ${RETRIES} ]; then
+                info "Retrying..."
+            fi
+        fi
+    done
     if [ ${RESULT} -ne 0 ]; then
-        error "Generation of deb package control files failed for package '$PKG_NAME'."
-        error "See $(readlink -f bloom.log) for details."
         return ${RESULT}
     fi
     PACKAGE_NAME_HYPHEN=$(echo "${PKG_NAME}" | tr '_' '-')
