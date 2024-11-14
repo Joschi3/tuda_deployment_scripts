@@ -209,7 +209,7 @@ function build_deb_from_ros_package() {
         return 1
     fi
     add_debian_pkg_to_rosdep "${PKG_NAME}" "${DEBIAN_PKG_NAME_PROJECT}"
-    rosdep update
+    rosdep update -q
 
     # echo content of ROSDEP_FILE=${APT_REPO_PATH}/${ROSWSS_PROJECT_NAME}.yaml
     echo "cat ${APT_REPO_PATH}/${ROSWSS_PROJECT_NAME}.yaml:"
