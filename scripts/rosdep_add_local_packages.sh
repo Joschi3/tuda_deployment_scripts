@@ -44,7 +44,7 @@ function add_local_rosdeps() {
         # add workspace packages to rosdep list and update rosdep cache
         rm -rf ${ROSDEP_YAML_FILE} 2>/dev/null
         mv ${ROSDEP_YAML_FILE}.new ${ROSDEP_YAML_FILE}
-        rosdep update
+        rosdep update -q
     else
         info "No new rosdep entries to add."
     fi

@@ -5,7 +5,7 @@
 function remove_local_rosdeps() {
     # remove workspace packages from rosdep list and update rosdep cache
     sudo rm -rf ${ROSDEP_YAML_FILE} ${ROSDEP_LIST_FILE}
-    rosdep update
+    rosdep update -q
 }
 
 remove_local_rosdeps || exit $?
