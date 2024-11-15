@@ -233,7 +233,6 @@ function parallel_build_deb_packages() {
     # TODO: remove
     # iterate packages and print their local dependencies
     for PACKAGE in ${QUEUE[@]}; do
-        echo "Local dependencies of $PACKAGE:"
         find_local_dependencies "$PACKAGE"
     done
 
@@ -325,11 +324,13 @@ done
 
 # Check if filtered arguments are provided #TODO:  --install-base "/opt/${ROSWSS_PROJECT_NAME}"
 if [ ${#FILTERED_ARGS[@]} -gt 0 ]; then
-    info "Building specified packages: ${FILTERED_ARGS[@]}"
-    colcon build --base-paths "$ROSWSS_ROOT" --build-base "${DEB_BUILD_PATH}" --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo --packages-up-to "${FILTERED_ARGS[@]}" 2>&1 | tee "${LOG_FOLDER}/colcon.log" || exit 1
+    info "Building specified packages: ${FILTERED_ARGS[*]}"
+    colcon build --base-paths "$ROSWSS_ROOT" --build-base "${DEB_BUILD_PATH}" --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo --packages-up-to "${FILTERED_ARGS[@]}" 2>&1 | tee "${LOG_FOLDER}/colcon.log"
+    [ ${PIPESTATUS[0]} -ne 0 ] && exit 1
 else
     info "Building all packages in the workspace."
-    colcon build --base-paths "$ROSWSS_ROOT" --build-base "${DEB_BUILD_PATH}" --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo 2>&1 | tee "${LOG_FOLDER}/colcon.log" || exit 1
+    colcon build --base-paths "$ROSWSS_ROOT" --build-base "${DEB_BUILD_PATH}" --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo 2>&1 | tee "${LOG_FOLDER}/colcon.log"
+    [ ${PIPESTATUS[0]} -ne 0 ] && exit 1
 fi
 
 info "Start building deb packages with timestamp $BUILD_TIMESTAMP"
