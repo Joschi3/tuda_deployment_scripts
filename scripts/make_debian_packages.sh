@@ -17,6 +17,9 @@ BUILD_TIMESTAMP="$(date -u "+%Y%m%d-%H%M%SUTC")"
 
 cd "${ROSWSS_ROOT}" || exit 1
 
+# make sure the log folder exists
+mkdir -p "${LOG_FOLDER}"
+
 function add_debian_pkg_to_rosdep() {
     local PKG_NAME=$1
     local DEBIAN_PKG_NAME=$2
