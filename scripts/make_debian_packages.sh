@@ -20,6 +20,20 @@ cd "${ROSWSS_ROOT}" || exit 1
 # make sure the log folder exists
 mkdir -p "${LOG_FOLDER}"
 
+# Define the lock file for mutual exclusion
+LOCK_FILE="/tmp/dpkg_install.lock"
+
+# Function to install the deb package
+function install_deb_package() {
+    local OUTPUT_FILE=$1
+    local PKG_NAME=$2
+
+    flock "$LOCK_FILE" dpkg -i "../${OUTPUT_FILE}" || {
+        error "Failed to install deb package '$PKG_NAME'."
+        return 1
+    }
+}
+
 function add_debian_pkg_to_rosdep() {
     local PKG_NAME=$1
     local DEBIAN_PKG_NAME=$2
@@ -200,10 +214,7 @@ function build_deb_from_ros_package() {
         return 1
     fi
 
-    dpkg -i "../${OUTPUT_FILE}" || {
-        error "Failed to install deb package '$PKG_NAME'."
-        return 1
-    }
+    install_deb_package "${OUTPUT_FILE}" "${PKG_NAME}"
 
     mv "../${OUTPUT_FILE}" "${APT_REPO_PATH}"
     RESULT=$?
