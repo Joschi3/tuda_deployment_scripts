@@ -96,8 +96,6 @@ function build_deb_from_ros_package() {
     local PKG_BUILD_PATH=$1
     if [ ! -d "${PKG_BUILD_PATH}" ]; then
         mkdir "${PKG_BUILD_PATH}"
-        #error "Build path for package does not exist: '$PKG_BUILD_PATH'"
-        #return -1;
     fi
 
     local PKG_NAME=$(basename "${PKG_BUILD_PATH}")
@@ -107,127 +105,56 @@ function build_deb_from_ros_package() {
     rm "$APT_REPO_PATH"/"${DEBIAN_PKG_NAME_PROJECT}"_*.deb 2>/dev/null
     rm "$APT_REPO_PATH"/"${DEBIAN_PKG_NAME_PROJECT}"_*.ddeb 2>/dev/null
 
-    # search for package src path locally to make sure we find local packages, not released ones in /opt/ros/...
+    # Determine package source path
     local PKG_SRC_PATH="${ROSWSS_ROOT}"/$(colcon info "$PKG_NAME" | grep 'path:' | awk '{print $2}')
 
-    local PKG_IS_GIT_PKG=0
-    local PKG_GIT_BRANCH
-    local PKG_GIT_COMMIT
-    local PKG_GIT_URL
+    # Clean up source directory before building
     cd "${PKG_SRC_PATH}" || {
         error "Failed to change to package source directory: '${PKG_SRC_PATH}'"
         return 1
     }
-    git branch >/dev/null 2>&1 && {
-        # This is only executed if this is a git repository
-        PKG_IS_GIT_PKG=1
-        PKG_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-        # Get commit id of 4 or more characters (minimal length to ensure uniqueness)
-        PKG_GIT_COMMIT=$(git rev-parse --short HEAD)
-        PKG_GIT_URL=$(git remote get-url "$(git remote)")
-    }
+    rm -rf build dist *.egg-info .pytest_cache 2>/dev/null
 
-    # clean up previous deb build
-    if [ -d debian ]; then
-        rm -rf debian
-    fi
-    # generate debian package control files in "debian" directory
+    # Generate debian package control files
     local LOG_FILE=${LOG_FOLDER}/${PKG_NAME}/bloom.log
     mkdir -p "$(dirname "${LOG_FILE}")"
-    # weird bloom-generate bug when calling it in parallel -> hence retry
-    local RETRIES=2
-    local COUNT=0
-    local RESULT=1
-    while [ ${COUNT} -lt ${RETRIES} ] && [ ${RESULT} -ne 0 ]; do
-        bloom-generate rosdebian --debug --os-name "${OS_NAME}" --os-version "${OS_VERSION}" --ros-distro "${ROS_DISTRO}" >"${LOG_FILE}" 2>&1
-        RESULT=$?
-        if [ ${RESULT} -ne 0 ]; then
-            COUNT=$((COUNT + 1))
-            error "Generation of deb package control files failed for package '$PKG_NAME'. Attempt ${COUNT} of ${RETRIES}."
-            error "See $(readlink -f bloom.log) for details."
-            if [ ${COUNT} -lt ${RETRIES} ]; then
-                info "Retrying..."
-            fi
-        fi
-    done
-    if [ ${RESULT} -ne 0 ]; then
-        return ${RESULT}
+    bloom-generate rosdebian --os-name "${OS_NAME}" --os-version "${OS_VERSION}" --ros-distro "${ROS_DISTRO}" >"${LOG_FILE}" 2>&1
+    if [ $? -ne 0 ]; then
+        error "Failed to generate debian package control files for package '$PKG_NAME'."
+        return 1
     fi
-    PACKAGE_NAME_HYPHEN=$(echo "${PKG_NAME}" | tr '_' '-')
-    BUILD_TYPE="RelWithDebInfo" # Change to Debug, Release, or any other build type
-    NEW_INSTALL_DIR="/opt/${ROSWSS_PROJECT_NAME}/${ROS_DISTRO}"
-    # rename package from ros-<distro>-<package_name> to hector-<distro>-<package_name>
-    sed -i "s/ros-${ROS_DISTRO}-${PACKAGE_NAME_HYPHEN}/${DEBIAN_PKG_NAME_PROJECT}/g" debian/control
-    sed -i "s/ros-${ROS_DISTRO}-${PACKAGE_NAME_HYPHEN}/${DEBIAN_PKG_NAME_PROJECT}/g" debian/rules
-    sed -i "s/ros-${ROS_DISTRO}-${PACKAGE_NAME_HYPHEN}/${DEBIAN_PKG_NAME_PROJECT}/g" debian/changelog
 
-    # Modify rules file
-    sed -i "s|/opt/ros/${ROS_DISTRO}|${NEW_INSTALL_DIR}|g" debian/rules
-    sed -i "s|CMAKE_BUILD_TYPE=.*|CMAKE_BUILD_TYPE=${BUILD_TYPE} \\\\|g" debian/rules
+    # Update control and rules files
+    local PACKAGE_NAME_HYPHEN=$(echo "${PKG_NAME}" | tr '_' '-')
+    sed -i "s/ros-${ROS_DISTRO}-${PACKAGE_NAME_HYPHEN}/${DEBIAN_PKG_NAME_PROJECT}/g" debian/control debian/rules debian/changelog
+    sed -i "s|/opt/ros/${ROS_DISTRO}|/opt/${ROSWSS_PROJECT_NAME}/${ROS_DISTRO}|g" debian/rules
+    sed -i 's:-v --buildsystem=cmake::g' debian/rules
 
-    # use environment setup of this workspace
-    #sed -i -e 's:/opt/ros/'"${ROS_DISTRO}"'/setup.sh:'"${DEB_DEVEL_PATH}"'/setup.sh:g' debian/rules
+    # Exclude unnecessary files during the build
+    echo -e "\noverride_dh_install:\n\tdh_install --exclude=.pytest_cache --exclude=*.egg-info" >> debian/rules
 
-    # use standard make instead of cmake to build the binaries
-    sed -i -e 's:-v --buildsystem=cmake::g' debian/rules
-
-    # disable lib dependency checking TODO: fix ceres_catkin and glog_catkin so they work without this
-    #sed -i -e 's:dh_shlibdeps -l:dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info -l:g' debian/rules
-    sed -i -e 's:dh_shlibdeps -l:return 0 #:g' debian/rules
-
-    # prevent dh_fixperms to change file permissions in /etc and /root
-    echo "" >>debian/rules
-    echo "override_dh_fixperms:" >>debian/rules
-    echo -e "\tdh_fixperms -X/etc/ -X/root/" >>debian/rules
-
-    # append current UTC date-time to version
+    # Append build info to changelog
     local BUILD_INFO=$BUILD_TIMESTAMP
-    # If this is a git repository, we include the branch and commit hash in the version:
-    if [ ${PKG_IS_GIT_PKG} -ne 0 ]; then
-        # Append commit id to version
-        BUILD_INFO="${BUILD_INFO}-${PKG_GIT_COMMIT}"
-
-        # Add Url including branch to control file
-        sed -i -r 's/^(Homepage:.*)$/Homepage: '"$(echo "${PKG_GIT_URL}#${PKG_GIT_BRANCH}" | sed 's/\//\\\//g')"'/' debian/control
-    fi
-    # Add info that this package replaces the ros debian package if a ros debian package exists already
-    if apt show $DEBIAN_PKG_NAME_ROS 2 &>1 >/dev/null; then
-        sed -i "/^Depends:.*/a Provides: ${DEBIAN_PKG_NAME_ROS}" debian/control
-    fi
     sed -i -e '1 s:'"$OS_VERSION"'):'"$OS_VERSION"'-'"$BUILD_INFO"'):g' debian/changelog
 
-    # start the build process for the deb package
+    # Build the package
     local BUILD_LOG_FILE=${LOG_FOLDER}/${PKG_NAME}/build.log
-    #fakeroot debian/rules binary > ${BUILD_LOG_FILE} 2>&1
     dpkg-buildpackage -b -d -uc -us -ui >"${BUILD_LOG_FILE}" 2>&1
-
-    RESULT=$?
-    if [ ${RESULT} -ne 0 ]; then
+    if [ $? -ne 0 ]; then
         error "Compilation of deb package failed for package '$PKG_NAME'."
-        error "See ${BUILD_LOG_FILE} for details."
-        return ${RESULT}
+        return 1
     fi
 
+    # Move the package to the APT repository
     local OUTPUT_FILE=$(ls -1 .. | grep "^${DEBIAN_PKG_NAME_PROJECT}_.*\.deb$" | tail -1)
     if [ -z "${OUTPUT_FILE}" ] || ! [ -f "../${OUTPUT_FILE}" ]; then
         error "No deb was generated despite compilation being successful!"
         return 1
     fi
-
-    install_deb_package "${OUTPUT_FILE}" "${PKG_NAME}"
-
-    mv "../${OUTPUT_FILE}" "${APT_REPO_PATH}"
-    RESULT=$?
-    if [ ${RESULT} -ne 0 ]; then
+    mv "../${OUTPUT_FILE}" "${APT_REPO_PATH}" || {
         error "Failed to move deb file to output directory!"
         return 1
-    fi
-    add_debian_pkg_to_rosdep "${PKG_NAME}" "${DEBIAN_PKG_NAME_PROJECT}"
-    rosdep update -q
-
-    # echo content of ROSDEP_FILE=${APT_REPO_PATH}/${ROSWSS_PROJECT_NAME}.yaml
-    echo "cat ${APT_REPO_PATH}/${ROSWSS_PROJECT_NAME}.yaml:"
-    cat "${APT_REPO_PATH}/${ROSWSS_PROJECT_NAME}.yaml"
+    }
 
     success "Compiled deb package '$PKG_NAME'."
 }
