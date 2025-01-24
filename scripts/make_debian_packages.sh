@@ -115,6 +115,9 @@ function build_deb_from_ros_package() {
     }
     rm -rf build dist *.egg-info .pytest_cache 2>/dev/null
 
+    # Remove .pytest_cache/.gitignore explicitly
+    find . -type f -name ".gitignore" -path "*/.pytest_cache/*" -exec rm -f {} +
+
     # Generate debian package control files
     local LOG_FILE=${LOG_FOLDER}/${PKG_NAME}/bloom.log
     mkdir -p "$(dirname "${LOG_FILE}")"
@@ -128,10 +131,9 @@ function build_deb_from_ros_package() {
     local PACKAGE_NAME_HYPHEN=$(echo "${PKG_NAME}" | tr '_' '-')
     sed -i "s/ros-${ROS_DISTRO}-${PACKAGE_NAME_HYPHEN}/${DEBIAN_PKG_NAME_PROJECT}/g" debian/control debian/rules debian/changelog
     sed -i "s|/opt/ros/${ROS_DISTRO}|/opt/${ROSWSS_PROJECT_NAME}/${ROS_DISTRO}|g" debian/rules
-    sed -i 's:-v --buildsystem=cmake::g' debian/rules
 
     # Exclude unnecessary files during the build
-    echo -e "\noverride_dh_install:\n\tdh_install --exclude=.pytest_cache --exclude=*.egg-info" >> debian/rules
+    echo -e "\noverride_dh_install:\n\tdh_install --exclude=.pytest_cache --exclude=.gitignore" >> debian/rules
 
     # Append build info to changelog
     local BUILD_INFO=$BUILD_TIMESTAMP
