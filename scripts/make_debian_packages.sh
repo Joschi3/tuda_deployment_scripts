@@ -117,6 +117,7 @@ function build_deb_from_ros_package() {
 
     # Remove .pytest_cache/.gitignore explicitly
     find . -type f -name ".gitignore" -path "*/.pytest_cache/*" -exec rm -f {} +
+    find . -type d -name ".pytest_cache" -exec rm -rf {} +
 
     # Generate debian package control files
     local LOG_FILE=${LOG_FOLDER}/${PKG_NAME}/bloom.log
@@ -134,6 +135,9 @@ function build_deb_from_ros_package() {
 
     # Exclude unnecessary files during the build
     echo -e "\noverride_dh_install:\n\tdh_install --exclude=.pytest_cache --exclude=.gitignore" >> debian/rules
+
+    # Remove .pytest_cache from staging directory before finalizing package
+    echo -e "\noverride_dh_auto_install:\n\tdh_auto_install\n\tfind debian/tmp -type d -name '.pytest_cache' -exec rm -rf {} +\n" >> debian/rules
 
     # Append build info to changelog
     local BUILD_INFO=$BUILD_TIMESTAMP
