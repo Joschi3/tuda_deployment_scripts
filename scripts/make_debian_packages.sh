@@ -161,6 +161,9 @@ function build_deb_from_ros_package() {
     sed -i "s/ros-${ROS_DISTRO}-${PACKAGE_NAME_HYPHEN}/${DEBIAN_PKG_NAME_PROJECT}/g" debian/rules
     sed -i "s/ros-${ROS_DISTRO}-${PACKAGE_NAME_HYPHEN}/${DEBIAN_PKG_NAME_PROJECT}/g" debian/changelog
 
+    # Update control and rules files -> avoid running tests
+    sed -i 's/dh_auto_test || true/true/' debian/rules
+
     # Modify rules file
     sed -i "s|/opt/ros/${ROS_DISTRO}|${NEW_INSTALL_DIR}|g" debian/rules
     sed -i "s|CMAKE_BUILD_TYPE=.*|CMAKE_BUILD_TYPE=${BUILD_TYPE} \\\\|g" debian/rules
