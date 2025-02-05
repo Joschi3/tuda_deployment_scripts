@@ -377,6 +377,16 @@ else
         done
     fi
 fi
+
+# uninstall previous deb packages if they exist
+for PACKAGE in ${PACKAGES}; do
+    DEBIAN_PKG_NAME=$(to_debian_pkg_name "${PACKAGE}")
+    if dpkg -l "${DEBIAN_PKG_NAME}" | grep -q "^ii"; then
+        info "Uninstalling previous deb package: ${DEBIAN_PKG_NAME}"
+        sudo dpkg -r "${DEBIAN_PKG_NAME}"
+    fi
+done
+
 info "Start building packages: $PACKAGES"
 parallel_build_deb_packages "${PACKAGES}"
 RESULT=$?
