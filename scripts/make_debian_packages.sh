@@ -343,7 +343,7 @@ if [ ${#FILTERED_ARGS[@]} -gt 0 ]; then
     [ ${PIPESTATUS[0]} -ne 0 ] && exit 1
 else
     info "Building all packages in the workspace."
-    colcon build --base-paths "$ROSWSS_ROOT" --build-base "${DEB_BUILD_PATH}" --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo 2>&1 | tee "${LOG_FOLDER}/colcon.log"
+    colcon build --base-paths "$ROSWSS_ROOT" --build-base "${DEB_BUILD_PATH}" --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSKIP_VENV:BOOL=ON 2>&1 | tee "${LOG_FOLDER}/colcon.log"
     [ ${PIPESTATUS[0]} -ne 0 ] && exit 1
 fi
 
